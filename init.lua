@@ -100,9 +100,7 @@ vim.g.have_nerd_font = false
 
 -- Make line numbers default
 vim.o.number = true
--- You can also add relative line numbers, to help with jumping.
---  Experiment for yourself to see if you like it!
--- vim.o.relativenumber = true
+vim.opt.relativenumber = true
 
 -- Enable mouse mode, can be useful for resizing splits for example!
 vim.o.mouse = 'a'
@@ -120,6 +118,8 @@ end)
 
 -- Enable break indent
 vim.o.breakindent = true
+
+vim.opt.wrap = false
 
 -- Save undo history
 vim.o.undofile = true
@@ -185,10 +185,10 @@ vim.keymap.set('n', '<leader>q', vim.diagnostic.setloclist, { desc = 'Open diagn
 vim.keymap.set('t', '<Esc><Esc>', '<C-\\><C-n>', { desc = 'Exit terminal mode' })
 
 -- TIP: Disable arrow keys in normal mode
--- vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>')
--- vim.keymap.set('n', '<right>', '<cmd>echo "Use l to move!!"<CR>')
--- vim.keymap.set('n', '<up>', '<cmd>echo "Use k to move!!"<CR>')
--- vim.keymap.set('n', '<down>', '<cmd>echo "Use j to move!!"<CR>')
+vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>')
+vim.keymap.set('n', '<right>', '<cmd>echo "Use l to move!!"<CR>')
+vim.keymap.set('n', '<up>', '<cmd>echo "Use k to move!!"<CR>')
+vim.keymap.set('n', '<down>', '<cmd>echo "Use j to move!!"<CR>')
 
 -- Keybinds to make split navigation easier.
 --  Use CTRL+<hjkl> to switch between windows
@@ -255,6 +255,22 @@ require('lazy').setup({
   --
   -- Use `opts = {}` to automatically pass options to a plugin's `setup()` function, forcing the plugin to be loaded.
   --
+  --  This is equivalent to:
+  --    require('Comment').setup({})
+
+  -- { 'junegunn/fzf', build = './install --bin' },
+  {
+    'ibhagwan/fzf-lua',
+    -- optional for icon support
+    dependencies = { 'nvim-tree/nvim-web-devicons' },
+    config = function()
+      -- calling `setup` is optional for customization
+      require('fzf-lua').setup {}
+    end,
+  },
+
+  -- "gc" to comment visual regions/lines
+  { 'numToStr/Comment.nvim', opts = {} },
 
   -- Alternatively, use `config = function() ... end` for full control over the configuration.
   -- If you prefer to call `setup` explicitly, use:
@@ -671,9 +687,9 @@ require('lazy').setup({
       --  - settings (table): Override the default settings passed when initializing the server.
       --        For example, to see the options for `lua_ls`, you could go to: https://luals.github.io/wiki/settings/
       local servers = {
-        -- clangd = {},
+        clangd = {},
         -- gopls = {},
-        -- pyright = {},
+        pyright = {},
         -- rust_analyzer = {},
         -- ... etc. See `:help lspconfig-all` for a list of all the pre-configured LSPs
         --
@@ -934,6 +950,42 @@ require('lazy').setup({
         return '%2l:%-2v'
       end
 
+      -- Mode -----------------------------------------------------------------------
+      -- Custom `^V` and `^S` symbols to make this file appropriate for copy-paste
+      -- (otherwise those symbols are not displayed).
+      local CTRL_S = vim.api.nvim_replace_termcodes('<C-S>', true, true, true)
+      local CTRL_V = vim.api.nvim_replace_termcodes('<C-V>', true, true, true)
+
+      -- stylua: ignore start
+      local modes = setmetatable({
+        ['n']    = { long = 'NORMAL',   short = 'N',   hl = 'MiniStatuslineModeNormal' },
+        ['v']    = { long = 'VISUAL',   short = 'V',   hl = 'MiniStatuslineModeVisual' },
+        ['V']    = { long = 'V-lINE',   short = 'V-L', hl = 'MiniStatuslineModeVisual' },
+        [CTRL_V] = { long = 'V-bLOCK',  short = 'V-B', hl = 'MiniStatuslineModeVisual' },
+        ['s']    = { long = 'SELECT',   short = 'S',   hl = 'MiniStatuslineModeVisual' },
+        ['S']    = { long = 'S-lINE',   short = 'S-L', hl = 'MiniStatuslineModeVisual' },
+        [CTRL_S] = { long = 'S-bLOCK',  short = 'S-B', hl = 'MiniStatuslineModeVisual' },
+        ['i']    = { long = 'INSERT',   short = 'I',   hl = 'MiniStatuslineModeInsert' },
+        ['R']    = { long = 'REPLACE',  short = 'R',   hl = 'MiniStatuslineModeReplace' },
+        ['c']    = { long = 'COMMAND',  short = 'C',   hl = 'MiniStatuslineModeCommand' },
+        ['r']    = { long = 'PROMPT',   short = 'P',   hl = 'MiniStatuslineModeOther' },
+        ['!']    = { long = 'SHELL',    short = 'Sh',  hl = 'MiniStatuslineModeOther' },
+        ['t']    = { long = 'TERMINAL', short = 'T',   hl = 'MiniStatuslineModeOther' },
+      }, {
+        -- By default return 'Unknown' but this shouldn't be needed
+        __index = function()
+          return   { long = 'Unknown',  short = 'U',   hl = '%#MiniStatuslineModeOther#' }
+        end,
+      })
+
+      ---@diagnostic disable-next-line: duplicate-set-field
+      statusline.section_mode = function(args)
+        local mode_info = modes[vim.fn.mode()]
+        local mode = MiniStatusline.is_truncated(args.trunc_width) and mode_info.short or mode_info.long
+        local upper_mode = string.upper(mode)
+        return upper_mode, mode_info.hl
+      end
+
       -- ... and there is more!
       --  Check out: https://github.com/echasnovski/mini.nvim
     end,
@@ -964,7 +1016,15 @@ require('lazy').setup({
     --    - Treesitter + textobjects: https://github.com/nvim-treesitter/nvim-treesitter-textobjects
   },
 
-  -- The following comments only work if you have downloaded the kickstart repo, not just copy pasted the
+  {
+    'nvim-tree/nvim-tree.lua',
+    config = function()
+      require('nvim-tree').setup {}
+      vim.keymap.set('n', '<leader>nn', ':NvimTreeToggle<CR>', { silent = true, desc = 'Toggle Tree' })
+    end,
+  },
+
+  -- The following two comments only work if you have downloaded the kickstart repo, not just copy pasted the
   -- init.lua. If you want these files, they are in the repository, so you can just download them and
   -- place them in the correct locations.
 
